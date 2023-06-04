@@ -44,7 +44,7 @@ class Scraper():
         print('DRIVER ONLINE')
 
 
-    def scrape(self, years: list = ['2013', '2014', '2015']) -> dict:
+    def scrape(self, url: list = [], years: list = ['2013', '2014', '2015']) -> dict:
         '''
         Starts the scraping over the `years`. For each `URL`, It redirects the
         `Selenium` Driver to Calendar section in Wayback Machine. Then, collect
@@ -65,13 +65,16 @@ class Scraper():
         >>> }
         '''
         
+        if len(url) == 0:
+            pool_url = self.__url__
+        else:
+            pool_url = url
+
         self.__url_html__ = {}      # Key = URL : Value = HTML
         print(f"YEARS: {years}")
-        print(f"URL: {len(self.__url__)}")
-        print(f"\nSTART SCRAPING -- EXPECTED TIME REQUIRED: {len(self.__url__) * 6 * 3}s")
         
         # Iterate over the url's.
-        for url in self.__url__:
+        for url in pool_url:
             
             print(f"URL: {url}")
             self.__url_html__[url] = {}
@@ -89,7 +92,7 @@ class Scraper():
                     print(f"SCRAPED {year}")
                     print("zzz...zzz...zzz...")         # Let the scraper rest a bit...
                     
-                    time.sleep(6)
+                    time.sleep(2)
                     html = self.__driver__.page_source
                     print(f"HTML STORED!")
                     
@@ -419,67 +422,92 @@ class ScrapePast(Scraper):
 
         super().start_driver()
 
+    
+    def recall_past(self, old_url: list):
 
-    def scrape(self) -> dict:
-        '''
-        Starts the scraping over the `years`. For each `URL`, It redirects the
-        `Selenium` Driver to Calendar section in Wayback Machine. Then, collect
-        the `HTML` and stores it. It will be of use when checking for the
-        presence of dates for which a snapshot of the past is available.
-
-        Parameters
-        ---
-        years : list, default = ['2013', '2014', '2015']
-            List of the years over which the scraper will look.
-        
-        Output
-        ---
-        A dictionary containing the `URL` and the `HTML` associated for each year as follows:
-        >>> {URL_0 : HTML_0,
-        >>>  URL_1 : HTML_1
-        >>>  ...
-        >>> }
-        '''
-        
-        self.__url_html__ = {}      # Key = URL : Value = HTML
-        print(f"URL: {len(self.__url__)}")
-        print(f"\nSTART SCRAPING -- EXPECTED TIME REQUIRED: {len(self.__url__) * 6 * 3}s")
+        self.__old_url_html__ = {}
         self.__url_keywords__ = {}
+        
+        for url in old_url:
 
-        # Iterate over the url's.
-        for url in self.__url__:
+            time.sleep(1)
+            html = requests.get(url)
+            soup = BeautifulSoup(html.content, 'html.parser')
+
+            meta_tag = soup.find('meta', attrs={'name': 'keywords', 'data-page-subject': 'true'})
+
+            # Extract the content attribute value as a string
+            keywords_string = meta_tag['content']
+
+            # Split the keywords into a list
+            keywords_list = keywords_string.split(', ')
             
-            successful = False
-
-            while not successful:
-                
-                print(f"URL: {url}")
-                self.__url_html__[url] = {}
-
-                # Retrieve the HTML of the DYNAMIC page.
+            self.__old_url_html__[f"{url}"] = soup
+            self.__url_keywords__[f"{url}"] = keywords_list
         
-                self.__driver__.get(url)    # Retrive the current HTML.
-                print("zzz...zzz...zzz...")         # Let the scraper rest a bit...
-                time.sleep(6)
-                html = self.__driver__.page_source
-                print(f"HTML STORED!")
-                
-                soup = BeautifulSoup(html, 'html.parser')       # Parse to get a neat structure.
-                
-                meta_tag = soup.find('meta', attrs={'name': 'keywords', 'data-page-subject': 'true'})
+        return self.__old_url_html__, self.__url_keywords__
 
-                # Extract the content attribute value as a string
-                keywords_string = meta_tag['content']
 
-                # Split the keywords into a list
-                keywords_list = keywords_string.split(', ')
-                
-                self.__url_keywords__[f"{url}"] = keywords_list
+    # def scrape(self) -> dict:
+    #     '''
+    #     Starts the scraping over the `years`. For each `URL`, It redirects the
+    #     `Selenium` Driver to Calendar section in Wayback Machine. Then, collect
+    #     the `HTML` and stores it. It will be of use when checking for the
+    #     presence of dates for which a snapshot of the past is available.
 
-                successful = len(keywords_list) > 0
-
-            self.__url_html__[url] = soup
+    #     Parameters
+    #     ---
+    #     years : list, default = ['2013', '2014', '2015']
+    #         List of the years over which the scraper will look.
         
-        return self.__url_html__, self.__url_keywords__
+    #     Output
+    #     ---
+    #     A dictionary containing the `URL` and the `HTML` associated for each year as follows:
+    #     >>> {URL_0 : HTML_0,
+    #     >>>  URL_1 : HTML_1
+    #     >>>  ...
+    #     >>> }
+    #     '''
+        
+    #     self.__url_html__ = {}      # Key = URL : Value = HTML
+    #     print(f"URL: {len(self.__url__)}")
+    #     print(f"\nSTART SCRAPING -- EXPECTED TIME REQUIRED: {len(self.__url__) * 6 * 3}s")
+    #     self.__url_keywords__ = {}
+
+    #     # Iterate over the url's.
+    #     for url in self.__url__:
+            
+    #         successful = False
+
+    #         while not successful:
+                
+    #             print(f"URL: {url}")
+    #             self.__url_html__[url] = {}
+
+    #             # Retrieve the HTML of the DYNAMIC page.
+        
+    #             self.__driver__.get(url)    # Retrive the current HTML.
+    #             print("zzz...zzz...zzz...")         # Let the scraper rest a bit...
+    #             time.sleep(2)
+    #             html = self.__driver__.page_source
+    #             print(f"HTML STORED!")
+                
+    #             soup = BeautifulSoup(html, 'html.parser')       # Parse to get a neat structure.
+                
+    #             meta_tag = soup.find('meta', attrs={'name': 'keywords', 'data-page-subject': 'true'})
+
+    #             # Extract the content attribute value as a string
+    #             keywords_string = meta_tag['content']
+
+    #             # Split the keywords into a list
+    #             keywords_list = keywords_string.split(', ')
+                
+    #             self.__url_keywords__[f"{url}"] = keywords_list
+
+    #             successful = len(keywords_list) > 0
+
+    #         self.__url_html__[url] = soup
+        
+    #     return self.__url_html__, self.__url_keywords__
 
 
