@@ -1,4 +1,3 @@
-
 import requests
 import re
 import time
@@ -96,22 +95,46 @@ class Scraper():
         
         return self.__url_html__
         
-    def get_snap_dates(self):
-        
-        self.__dates__ = {}
 
-        for url in list(self.__url_html__.keys()):
+    def get_snap_dates(self, list_html: dict = {}) -> dict:
+        '''
+        Given a list of `HTML`'s containing the calendar with the snapshots of the past, returns
+        all the date for which a snapshot is available.
+
+        Parameters
+        ---
+        list_html : list
+            List containing the `HTML`'s. Each `HTML` refers to a calendar page of Wayback Machine
+            and stores the information about the snapshots and the related dates.
+        
+        Output
+        ---
+        A `dict` structured as follows:
+        >>> {URL_0 : [snapshot_date_1, snapshot_date_1],
+        >>>  URL_1 : [snapshot_date_1, snapshot_date_1],
+        >>>  ...
+        >>> }
+        '''
+        
+        # If a list of URL's is not provided, refers to the one stored in the class.
+        list_html = self.__url_html__ if not list_html else list_html
+        dates = {}
+
+        # Iterates over all the HTML.
+        for html in list(list_html.keys()):
     
-            soup = self.__url_html__[url]       # Store the HTML.
-            self.__dates__[f"{url}"] = []       # Initialize the URL key.
+            soup = list_html[html]       # Store the HTML.
+            dates[f"{html}"] = []       # Initialize the URL key.
 
             # Iterate over the years for a specific URL.
             for year in list(soup.keys()):
 
-                # big_list[url].update(get_real_dates(soup[year], year))  # For each URL, append the year and the related dates.
-                self.__dates__[url].extend(self._get_snap_dates(soup[year], year))  # For each URL, append the year and the related dates.    
+                dates[html].extend(self._get_snap_dates(soup[year], year))  # For each URL, append the year and the related dates.    
 
-        return self.__dates__
+        self.__dates__ = dates
+
+        return dates
+
 
     def _get_snap_dates(self, soup: BeautifulSoup, scraping_year: str) -> list: 
         '''
@@ -134,14 +157,15 @@ class Scraper():
         # Get the month class.
         css_selector = '[class="month"]'
         highlighted_elements = soup.select(css_selector)
-        
+        date_format = "%Y/%m/%d"
+
         # Iterate over all the months.
         for month in range(0, 12):
             
             # Extract days of the month that contain a snapshot.
             for day in highlighted_elements[month].select('[style="touch-action: pan-y; user-select: none;"]'):
-                
-                dates.append("" + f"{scraping_year}/" + f"{str(month + 1)}/" + f"{str(day.get_text())}")
+                date_str = "" + f"{scraping_year}/" + f"{str(month + 1)}/" + f"{str(day.get_text())}"
+                dates.append(datetime.strptime(date_str, date_format).date())
 
         # Transform into a np.array for efficiency reasons.
         dates = np.array(dates)
@@ -150,12 +174,23 @@ class Scraper():
 
     
     def shift_dates(self, initial_date_url, timedelta):
-
-        date_from_url = [self._dates_from_url(i_url) for i_url in initial_date_url]
+        
+        date_from_url = [self._date_from_url(i_url) for i_url in initial_date_url]
         self.__shifted_dates__ = [self._shift_date(date, timedel) for date, timedel in zip(date_from_url, timedelta)]
 
         return self.__shifted_dates__
 
+
+    def _date_from_string(self, date_str_list: list, date_format = "%Y/%m/%d"):
+
+        return np.array([datetime.strptime(string, date_format).date() for string in date_str_list])
+
+    def get_closest(self, candidate_date, real_dates):
+
+        masked = np.array(real_dates)[np.array(real_dates) <=candidate_date]   # Filter possible candidate dates.
+        closest = masked[(candidate_date - np.array([filtered for filtered in masked])).argmin()]
+
+        return closest
 
     def _dates_from_html(self, url_html: dict) -> dict:
         '''
@@ -187,7 +222,7 @@ class Scraper():
         return self.__url_dates__
     
 
-    def _dates_from_url(self, url: list,  date_format: str = "%Y/%m/%d", save = True) -> datetime:
+    def _date_from_url(self, url: list,  date_format: str = "%Y/%m/%d", save = True) -> datetime:
         '''
         Extract the date within the `URL`.
 
@@ -258,24 +293,3 @@ class Scraper():
 
         return closest
 
-    
-    def get_closest(self, url: list, timedelta: list):
-        '''
-        Given a `list` of `timedelta` 
-        '''
-        
-        date_new = np.array(list(map(self.get_date_from_url, url)))                               # When the news was posted.
-        
-        print(date_new)
-        
-        shifted_dates = np.array(list(map(self._compute_shift_date, date_new, timedelta)))    # When the news was scraped.
-        print(shifted_dates)
-        self.__url_dates__ = self._dates_from_html(self.__url_html__)
-
-        for url_, i in zip(url, shifted_dates):
-            
-            snap = np.array([datetime.strptime(string, "%Y/%m/%d").date() for string in self.__url_dates__])
-            closest = self._get_closest(shifted_dates[url_], snap)
-        
-        return closest
-    
