@@ -71,12 +71,11 @@ class Scraper():
             pool_url = url
 
         self.__url_html__ = {}      # Key = URL : Value = HTML
-        print(f"YEARS: {years}")
         
         # Iterate over the url's.
         for url in pool_url:
             
-            print(f"URL: {url}")
+            print(f"Current URL: {url}")
             self.__url_html__[url] = {}
 
             # Retrieve the HTML of the DYNAMIC page.
@@ -85,21 +84,21 @@ class Scraper():
                 successful = False
                 
                 while not successful:
-                    print(f"CURRENT YEAR: {year}")
                     # Refers to January, 1st. Arbitrary decision.
                     archive_url = 'https://web.archive.org/web/' + f"{year}" + '0101000000*/' + url
                     self.__driver__.get(archive_url)    # Retrive the current HTML.
-                    print(f"SCRAPED {year}")
-                    print("zzz...zzz...zzz...")         # Let the scraper rest a bit...
-                    
+                    print("\n\t\tzzz...zzz...zzz...")         # Let the scraper rest a bit...
                     time.sleep(2)
+                    print("")
+                    print(f"\t\t      !!!")
                     html = self.__driver__.page_source
-                    print(f"HTML STORED!")
+                    print(f"\nfrom {year}\t  HTML ACQUIRED!")
                     
                     soup = BeautifulSoup(html, 'html.parser')       # Parse to get a neat structure.
-                    css_selector = '[class="month"]'
-                    highlighted_month = soup.select(css_selector)
-                    successful = len(highlighted_month) > 0
+                    divs = soup.find_all('div', class_='month-day-container')
+                    successful = len(divs) > 300
+                    print("")
+                    print("\t\Failure.") if not successful else print("\t\tSuccess!")
 
                 self.__url_html__[url].update({year : soup})
         
@@ -431,7 +430,14 @@ class ScrapePast(Scraper):
         for url in old_url:
 
             time.sleep(1)
+            print(f"URL: {url}")
+            print("\n\t\t -- REQUEST SENT --")
+            toc = time.time()
             html = requests.get(url)
+            tic = time.time()
+            print("\n\t\t-- HTML ACQUIRED! --")
+            print(f"\nTime: {(tic - toc):.4f}")
+            print("")
             soup = BeautifulSoup(html.content, 'html.parser')
 
             meta_tag = soup.find('meta', attrs={'name': 'keywords', 'data-page-subject': 'true'})
