@@ -1,4 +1,3 @@
-
 import requests
 import re
 import time
@@ -14,7 +13,7 @@ class Scraper():
     def __init__(self):
         '''
         Builds a `Scraper` object. Its goal is to make easier the scraping procedure
-        thanks to the methods it provides.
+        and the management of the `URL`'s. 
         '''
         
         self = self
@@ -22,7 +21,8 @@ class Scraper():
 
     def set_url(self, url: list) -> None:
         '''
-        Pass a list `URL`'s to scrape.
+        Pass a list `URL`'s. They will be stored within the object and will be considered
+        through the scraping.
 
         Parameter
         ---
@@ -44,20 +44,26 @@ class Scraper():
 
     def scrape(self, years: list = ['2013', '2014', '2015']) -> dict:
         '''
-        Starts the scraping over the `years`.
+        Starts the scraping over the `years`. For each `URL`, It redirects the
+        `Selenium` Driver to Calendar section in Wayback Machine. Then, collect
+        the `HTML` and stores it. It will be of use when checking for the
+        presence of dates for which a snapshot of the past is available.
 
         Parameters
         ---
         years : list, default = ['2013', '2014', '2015']
-            List of the years over which the scraper will work.
+            List of the years over which the scraper will look.
         
         Output
         ---
-        A dictionary containing the `URL` and the `HTML` associated for each year.
-
+        A dictionary containing the `URL` and the `HTML` associated for each year as follows:
+        >>> {URL_0 : HTML_0,
+        >>>  URL_1 : HTML_1
+        >>>  ...
+        >>> }
         '''
         
-        self.__url_html__ = {}
+        self.__url_html__ = {}      # Key = URL : Value = HTML
         print(f"YEARS: {years}")
         print(f"URL: {len(self.__url__)}")
         print(f"\nSTART SCRAPING -- EXPECTED TIME REQUIRED: {len(self.__url__) * 6 * 3}s")
@@ -75,7 +81,6 @@ class Scraper():
                 
                 while not successful:
                     print(f"CURRENT YEAR: {year}")
-                    
                     # Refers to January, 1st. Arbitrary decision.
                     archive_url = 'https://web.archive.org/web/' + f"{year}" + '0101000000*/' + url
                     self.__driver__.get(archive_url)    # Retrive the current HTML.
@@ -96,22 +101,46 @@ class Scraper():
         
         return self.__url_html__
         
-    def get_snap_dates(self):
-        
-        self.__dates__ = {}
 
-        for url in list(self.__url_html__.keys()):
+    def get_snap_dates(self, list_html: dict = {}) -> dict:
+        '''
+        Given a list of `HTML`'s from the calendar section, returns
+        all the dates for which a snapshot in the past is available.
+
+        Parameters
+        ---
+        list_html : list
+            List containing the `HTML`'s. Each `HTML` refers to a calendar page of Wayback Machine
+            and stores the information about the snapshots and the related dates.
+        
+        Output
+        ---
+        A `dict` structured as follows:
+        >>> {URL_0 : [snapshot_date_1, snapshot_date_1],
+        >>>  URL_1 : [snapshot_date_1, snapshot_date_1],
+        >>>  ...
+        >>> }
+        '''
+        
+        # If a list of URL's is not provided, refers to the one stored in the class.
+        list_html = self.__url_html__ if not list_html else list_html
+        dates = {}
+
+        # Iterates over all the HTML.
+        for html in list(list_html.keys()):
     
-            soup = self.__url_html__[url]       # Store the HTML.
-            self.__dates__[f"{url}"] = []       # Initialize the URL key.
+            soup = list_html[html]       # Store the HTML.
+            dates[f"{html}"] = []       # Initialize the URL key.
 
             # Iterate over the years for a specific URL.
             for year in list(soup.keys()):
 
-                # big_list[url].update(get_real_dates(soup[year], year))  # For each URL, append the year and the related dates.
-                self.__dates__[url].extend(self._get_snap_dates(soup[year], year))  # For each URL, append the year and the related dates.    
+                dates[html].extend(self._get_snap_dates(soup[year], year))  # For each URL, append the year and the related dates.    
 
-        return self.__dates__
+        self.__dates__ = dates
+
+        return dates
+
 
     def _get_snap_dates(self, soup: BeautifulSoup, scraping_year: str) -> list: 
         '''
@@ -120,7 +149,7 @@ class Scraper():
         Parameters
         ---
         soup : BeautifulSoup
-            A `BeautifulSoup` object, containing a HTML.
+            A `BeautifulSoup` object, containing a HTML;
         
         scraping_year : str
             The year in which the scraper should work.
@@ -134,14 +163,15 @@ class Scraper():
         # Get the month class.
         css_selector = '[class="month"]'
         highlighted_elements = soup.select(css_selector)
-        
+        date_format = "%Y/%m/%d"
+
         # Iterate over all the months.
         for month in range(0, 12):
             
             # Extract days of the month that contain a snapshot.
             for day in highlighted_elements[month].select('[style="touch-action: pan-y; user-select: none;"]'):
-                
-                dates.append("" + f"{scraping_year}/" + f"{str(month + 1)}/" + f"{str(day.get_text())}")
+                date_str = "" + f"{scraping_year}/" + f"{str(month + 1)}/" + f"{str(day.get_text())}"
+                dates.append(datetime.strptime(date_str, date_format).date())
 
         # Transform into a np.array for efficiency reasons.
         dates = np.array(dates)
@@ -149,17 +179,77 @@ class Scraper():
         return dates
 
     
-    def shift_dates(self, initial_date_url, timedelta):
+    def shift_dates(self, initial_date_url: list, timedelta: list) -> list:
+        '''
+        Returns the initial date shifted by `timedelta` days in the future. `initial_date_url`
+        must be the original `URL`.
 
-        date_from_url = [self._dates_from_url(i_url) for i_url in initial_date_url]
+        Parameters
+        ---
+        initial_date_url : list
+            List containing the `URL`'s that contain the dates that will be shifted;
+        
+        timedelta : list
+            List containing the days representing the shift in the future.
+        
+        Output
+        ---
+        List contaning the shifted dates.
+        '''
+
+        date_from_url = [self._date_from_url(i_url) for i_url in initial_date_url]
         self.__shifted_dates__ = [self._shift_date(date, timedel) for date, timedel in zip(date_from_url, timedelta)]
 
         return self.__shifted_dates__
 
 
+    def _date_from_string(self, date_str_list: list, date_format = "%Y/%m/%d") -> datetime:
+        '''
+        Given a `str` date, returns the date in a `date.time` format.
+
+        Parameters
+        ---
+        date_str_list : list
+            List of dates in a `str` format;
+        
+        date_format : str, default = "%Y/%m/%d"
+            Format of the date to be considered.
+        
+        Output
+        ---
+        Date in the `datetime` format.
+        '''
+
+        return np.array([datetime.strptime(string, date_format).date() for string in date_str_list])
+
+
+    def get_closest(self, candidate_date: datetime, real_dates: list) -> datetime:
+        '''
+        Takes the date in which the data were collected and retrieve the closest date for which
+        a snapshot is available.
+
+        Parameters
+        ---
+        candidate_date : datetime
+            The initial date shifted in the future;
+        
+        real_dates : list
+            A list of `datetime` dates for which a snapshot of the past is available.
+        
+        Output
+        ---
+        Returns the closest `datetime` date for which a snapshot is available.
+        '''
+
+        masked = np.array(real_dates)[np.array(real_dates) <=candidate_date]   # Filter possible candidate dates.
+        closest = masked[(candidate_date - np.array([filtered for filtered in masked])).argmin()]
+
+        return closest
+
+
     def _dates_from_html(self, url_html: dict) -> dict:
         '''
-        Extracts the dates within the `HTML` for which a snapshot is present.
+        Extracts the dates within the `HTML` for which a snapshot is available.
 
         Parameters
         ---
@@ -187,7 +277,7 @@ class Scraper():
         return self.__url_dates__
     
 
-    def _dates_from_url(self, url: list,  date_format: str = "%Y/%m/%d", save = True) -> datetime:
+    def _date_from_url(self, url: list,  date_format: str = "%Y/%m/%d", save = True) -> datetime:
         '''
         Extract the date within the `URL`.
 
@@ -258,24 +348,29 @@ class Scraper():
 
         return closest
 
-    
-    def get_closest(self, url: list, timedelta: list):
-        '''
-        Given a `list` of `timedelta` 
-        '''
-        
-        date_new = np.array(list(map(self.get_date_from_url, url)))                               # When the news was posted.
-        
-        print(date_new)
-        
-        shifted_dates = np.array(list(map(self._compute_shift_date, date_new, timedelta)))    # When the news was scraped.
-        print(shifted_dates)
-        self.__url_dates__ = self._dates_from_html(self.__url_html__)
 
-        for url_, i in zip(url, shifted_dates):
-            
-            snap = np.array([datetime.strptime(string, "%Y/%m/%d").date() for string in self.__url_dates__])
-            closest = self._get_closest(shifted_dates[url_], snap)
+    def switch_date(self, initial_url: str, switch_date: datetime) -> str:
+        '''
+        Starting from the initial 'URL', builds a new `URL` that redirects to the closest same webpage
+        in the past.
+
+        Parameters
+        ---
+        initial_url : str
+            Starting `URL`;
         
-        return closest
-    
+        switch_date : datetime
+            The date of the closest webpage in the past.
+        
+        Output
+        ---
+        The `URL` of the same webpage in another time.
+        '''
+
+        switched = {}
+        for initial, switch in zip(initial_url, switch_date.keys()):
+            
+            switched.update({initial : ["https://web.archive.org/web/" + str(switch_date[f"{switch}"]).replace("-", "") + "/" + initial]})
+            
+        return switched
+
