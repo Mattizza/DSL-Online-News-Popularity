@@ -7,6 +7,8 @@ from bs4 import BeautifulSoup
 from selenium import webdriver
 from datetime import datetime, timedelta
 
+import concurrent.futures
+
 
 class Scraper():
 
@@ -101,6 +103,19 @@ class Scraper():
         
         return self.__url_html__
         
+    
+    def parallelize_scrape(self, url_partition):
+
+
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            # Submit the scraping tasks to the executor
+            results = [executor.submit(self.scrape, url_fold) for url_fold in url_partition]
+            # Retrieve the results as they complete
+            for future in concurrent.futures.as_completed(results):
+                scraped_data = future.result()
+                # Process or store the scraped data as desired
+        
+        return scraped_data
 
     def get_snap_dates(self, list_html: dict = {}) -> dict:
         '''
@@ -370,7 +385,101 @@ class Scraper():
         switched = {}
         for initial, switch in zip(initial_url, switch_date.keys()):
             
-            switched.update({initial : ["https://web.archive.org/web/" + str(switch_date[f"{switch}"]).replace("-", "") + "/" + initial]})
+            switched.update({initial : "https://web.archive.org/web/" + str(switch_date[f"{switch}"]).replace("-", "") + "/" + initial})
             
         return switched
+
+
+class ScrapePast(Scraper):
+
+
+    def __init__(self):
+
+        self = self
+
+
+    def set_url(self, url: list) -> None:
+        '''
+        Pass a list `URL`'s. They will be stored within the object and will be considered
+        through the scraping.
+
+        Parameter
+        ---
+        url : list
+            List of `URL`'s, each in a `str` format.
+        '''
+        
+        super().set_url(url)
+
+
+    def start_driver(self) -> None:
+        '''
+        Start a `Selenium` webdriver using Firefox as browser.
+        '''
+
+        super().start_driver()
+
+
+    def scrape(self) -> dict:
+        '''
+        Starts the scraping over the `years`. For each `URL`, It redirects the
+        `Selenium` Driver to Calendar section in Wayback Machine. Then, collect
+        the `HTML` and stores it. It will be of use when checking for the
+        presence of dates for which a snapshot of the past is available.
+
+        Parameters
+        ---
+        years : list, default = ['2013', '2014', '2015']
+            List of the years over which the scraper will look.
+        
+        Output
+        ---
+        A dictionary containing the `URL` and the `HTML` associated for each year as follows:
+        >>> {URL_0 : HTML_0,
+        >>>  URL_1 : HTML_1
+        >>>  ...
+        >>> }
+        '''
+        
+        self.__url_html__ = {}      # Key = URL : Value = HTML
+        print(f"URL: {len(self.__url__)}")
+        print(f"\nSTART SCRAPING -- EXPECTED TIME REQUIRED: {len(self.__url__) * 6 * 3}s")
+        self.__url_keywords__ = {}
+
+        # Iterate over the url's.
+        for url in self.__url__:
+            
+            successful = False
+
+            while not successful:
+                
+                print(f"URL: {url}")
+                self.__url_html__[url] = {}
+
+                # Retrieve the HTML of the DYNAMIC page.
+        
+                self.__driver__.get(url)    # Retrive the current HTML.
+                print("zzz...zzz...zzz...")         # Let the scraper rest a bit...
+                time.sleep(6)
+                html = self.__driver__.page_source
+                print(f"HTML STORED!")
+                
+                soup = BeautifulSoup(html, 'html.parser')       # Parse to get a neat structure.
+                
+                meta_tag = soup.find('meta', attrs={'name': 'keywords', 'data-page-subject': 'true'})
+
+                # Extract the content attribute value as a string
+                keywords_string = meta_tag['content']
+
+                # Split the keywords into a list
+                keywords_list = keywords_string.split(', ')
+                
+                self.__url_keywords__[f"{url}"] = keywords_list
+
+                successful = len(keywords_list) > 0
+
+            self.__url_html__[url] = soup
+        
+        return self.__url_html__, self.__url_keywords__
+
 

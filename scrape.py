@@ -14,7 +14,6 @@ from Scraper import Scraper
 import pickle
 
 
-
 #\-- SET ENVIRONMENT --/#
 # Before starting we need to store the data properly. We define an ad-hoc folder where we will store everything.
 main_PATH = os.getcwd()
