@@ -90,7 +90,7 @@ class Scraper():
                     print("\n\t\tzzz...zzz...zzz...")         # Let the scraper rest a bit...
                     time.sleep(2)
                     print("")
-                    print(f"\t\t      !!!")
+                    print(f"\t\t       !!!!")
                     html = self.__driver__.page_source
                     print(f"\nfrom {year}\t  HTML ACQUIRED!")
                     
@@ -98,7 +98,7 @@ class Scraper():
                     divs = soup.find_all('div', class_='month-day-container')
                     successful = len(divs) > 300
                     print("")
-                    print("\t\Failure.") if not successful else print("\t\tSuccess!")
+                    print("\t\t     Failure.") if not successful else print("\t\t     Success!")
 
                 self.__url_html__[url].update({year : soup})
         
@@ -144,15 +144,15 @@ class Scraper():
         dates = {}
 
         # Iterates over all the HTML.
-        for html in list(list_html.keys()):
+        for url in list(list_html.keys()):
     
-            soup = list_html[html]       # Store the HTML.
-            dates[f"{html}"] = []       # Initialize the URL key.
+            soup = list_html[url]      # Store the HTML.
+            dates[f"{url}"] = []       # Initialize the URL key.
 
             # Iterate over the years for a specific URL.
             for year in list(soup.keys()):
 
-                dates[html].extend(self._get_snap_dates(soup[year], year))  # For each URL, append the year and the related dates.    
+                dates[url].extend(self._get_snap_dates(soup[year], year))  # For each URL, append the year and the related dates.    
 
         self.__dates__ = dates
 
@@ -181,14 +181,16 @@ class Scraper():
         css_selector = '[class="month"]'
         highlighted_elements = soup.select(css_selector)
         date_format = "%Y/%m/%d"
-
+        
         # Iterate over all the months.
         for month in range(0, 12):
             
             # Extract days of the month that contain a snapshot.
             for day in highlighted_elements[month].select('[style="touch-action: pan-y; user-select: none;"]'):
-                date_str = "" + f"{scraping_year}/" + f"{str(month + 1)}/" + f"{str(day.get_text())}"
-                dates.append(datetime.strptime(date_str, date_format).date())
+
+                if len(day) > 0:
+                    date_str = "" + f"{scraping_year}/" + f"{str(month + 1)}/" + f"{str(day.get_text())}"
+                    dates.append(datetime.strptime(date_str, date_format).date())
 
         # Transform into a np.array for efficiency reasons.
         dates = np.array(dates)
@@ -259,7 +261,10 @@ class Scraper():
         '''
 
         masked = np.array(real_dates)[np.array(real_dates) <=candidate_date]   # Filter possible candidate dates.
-        closest = masked[(candidate_date - np.array([filtered for filtered in masked])).argmin()]
+        if len(masked) == 0:
+            closest = candidate_date
+        else:
+            closest = masked[(candidate_date - np.array([filtered for filtered in masked])).argmin()]
 
         return closest
 
@@ -413,19 +418,11 @@ class ScrapePast(Scraper):
         
         super().set_url(url)
 
-
-    def start_driver(self) -> None:
-        '''
-        Start a `Selenium` webdriver using Firefox as browser.
-        '''
-
-        super().start_driver()
-
     
     def recall_past(self, old_url: list):
 
         self.__old_url_html__ = {}
-        self.__url_keywords__ = {}
+        self.__url_info__ = {}
         
         for url in old_url:
 
@@ -439,6 +436,7 @@ class ScrapePast(Scraper):
             print(f"\nTime: {(tic - toc):.4f}")
             print("")
             soup = BeautifulSoup(html.content, 'html.parser')
+            self.__url_info__[f'{url}'] = {}
 
             meta_tag = soup.find('meta', attrs={'name': 'keywords', 'data-page-subject': 'true'})
 
@@ -448,72 +446,55 @@ class ScrapePast(Scraper):
             # Split the keywords into a list
             keywords_list = keywords_string.split(', ')
             
+            imgs   = soup.select('.article-content img')
+            videos = soup.select('.article-content iframe')
+
             self.__old_url_html__[f"{url}"] = soup
-            self.__url_keywords__[f"{url}"] = keywords_list
+            self.__url_info__[f"{url}"]['keywords'] = keywords_list
+            self.__url_info__[f"{url}"]['imgs'] = len(imgs)
+            self.__url_info__[f"{url}"]['videos'] = len(videos)
+
+        return self.__old_url_html__, self.__url_info__
+
+
+class ScrapeTrends(Scraper):
+
+
+    def __init__(self):
+        '''
+        Builds a `ScrapeTrends` object. It provides methods useful to handle the scraping
+        of trends from the Wayback Machine.
+        '''
+
+        self = self
+
+
+    def recall_trend(self, url_html: dict) -> dict: 
+        '''
+        Given a dictionary of `HTML` files, iterates over them and retrieve
+        all the channels.
+
+        Parameters
+        ---
+        url_html : dict
+            Dictionary containing the `URL's and the related `HTML` files.
         
-        return self.__old_url_html__, self.__url_keywords__
-
-
-    # def scrape(self) -> dict:
-    #     '''
-    #     Starts the scraping over the `years`. For each `URL`, It redirects the
-    #     `Selenium` Driver to Calendar section in Wayback Machine. Then, collect
-    #     the `HTML` and stores it. It will be of use when checking for the
-    #     presence of dates for which a snapshot of the past is available.
-
-    #     Parameters
-    #     ---
-    #     years : list, default = ['2013', '2014', '2015']
-    #         List of the years over which the scraper will look.
+        Output
+        ---
+        A `dict` containing, for each `URL`, the list of channels appearning
+        in the webpage.
+        '''
         
-    #     Output
-    #     ---
-    #     A dictionary containing the `URL` and the `HTML` associated for each year as follows:
-    #     >>> {URL_0 : HTML_0,
-    #     >>>  URL_1 : HTML_1
-    #     >>>  ...
-    #     >>> }
-    #     '''
+        url_trends = {}
         
-    #     self.__url_html__ = {}      # Key = URL : Value = HTML
-    #     print(f"URL: {len(self.__url__)}")
-    #     print(f"\nSTART SCRAPING -- EXPECTED TIME REQUIRED: {len(self.__url__) * 6 * 3}s")
-    #     self.__url_keywords__ = {}
+        for url in url_html.keys():
 
-    #     # Iterate over the url's.
-    #     for url in self.__url__:
-            
-    #         successful = False
+            url_trends[f"{url}"] = []
+            html = url_html[url]
 
-    #         while not successful:
-                
-    #             print(f"URL: {url}")
-    #             self.__url_html__[url] = {}
+            text = html.text
+            channels = re.findall(r'(?<="channel":")[^"]*', text)
 
-    #             # Retrieve the HTML of the DYNAMIC page.
-        
-    #             self.__driver__.get(url)    # Retrive the current HTML.
-    #             print("zzz...zzz...zzz...")         # Let the scraper rest a bit...
-    #             time.sleep(2)
-    #             html = self.__driver__.page_source
-    #             print(f"HTML STORED!")
-                
-    #             soup = BeautifulSoup(html, 'html.parser')       # Parse to get a neat structure.
-                
-    #             meta_tag = soup.find('meta', attrs={'name': 'keywords', 'data-page-subject': 'true'})
+            url_trends[f"{url}"].extend(channels)
 
-    #             # Extract the content attribute value as a string
-    #             keywords_string = meta_tag['content']
-
-    #             # Split the keywords into a list
-    #             keywords_list = keywords_string.split(', ')
-                
-    #             self.__url_keywords__[f"{url}"] = keywords_list
-
-    #             successful = len(keywords_list) > 0
-
-    #         self.__url_html__[url] = soup
-        
-    #     return self.__url_html__, self.__url_keywords__
-
-
+        return url_trends
