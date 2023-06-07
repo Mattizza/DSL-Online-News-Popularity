@@ -1,18 +1,55 @@
-import zipfile                          
-import os                               
+#\-- IMPORT MODULES, CLASSES AND METHODS --/#
 
-import numpy as np                  
-import pandas as pd                 
+import zipfile                          #############################
+import os                               # || FILE SYSTEM / UTILS || #
+import copy                             #############################
+from prettytable import PrettyTable
+
+# ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+import numpy as np                  ###################################
+import pandas as pd                 # || EXPLORATIVE DATA ANALYSIS || #
+import matplotlib.pyplot as plt     ###################################
+import seaborn as sns
+# https://towardsdatascience.com/handling-missing-data-like-a-pro-part-3-model-based-multiple-imputation-methods-bdfe85f93087 NumPyro, impyute,
+
+# ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+import sklearn
+import re
+import importlib
+import time
+
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, f1_score
+
+from sklearn import naive_bayes                         #########################
+from sklearn import neural_network                      #  |-----------------|  #
+from sklearn import svm                                 # || MODEL SELECTION || #
+from sklearn import tree                                #  |-----------------|  #
+from sklearn import linear_model                        #########################
+
+# from PrunedCV import PrunedCV
+
+# ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis, QuadraticDiscriminantAnalysis
+
+from sklearn.model_selection import StratifiedKFold     ##########################
+from sklearn.model_selection import ParameterGrid       # || MODEL VALIDATION || #
+                                                        ##########################
+
 
 from bs4 import BeautifulSoup
 import requests
 from selenium import webdriver
 import re
 from datetime import datetime, timedelta
-from Scraper import Scraper
-
 import pickle
 
+from Scraper import Scraper
 
 #\-- SET ENVIRONMENT --/#
 # Before starting we need to store the data properly. We define an ad-hoc folder where we will store everything.
@@ -80,24 +117,10 @@ data = pd.read_csv(file_PATH + r'/development.csv',
 
 
 # to_be_scraped = data[data['num_imgs'].isna()]
-to_be_scraped = data.iloc[0:3]
-
+to_be_scraped = data[data['num_imgs'].isna()].iloc[500:1000]
 scrap = Scraper()
-scrap.set_url(to_be_scraped['url'])
+scrap.set_url(to_be_scraped[['url', 'timedelta']])
 scrap.start_driver()
 
-url_html = scrap.scrape()
+scrap.scrape()
 
-candidate_dates = scrap.get_snap_dates()
-shifted_dates = scrap.shift_dates(data['url'], data['timedelta'])
-
-closest = []
-for i, key in zip(range(len(data['url'])), candidate_dates.keys()):
-    closest.append(scrap.get_closest(shifted_dates[i], candidate_dates[key]))
-
-scraping_dates = {k: v for k, v in zip(data['url'], closest)}
-
-switched = scrap.switch_date(to_be_scraped['url'], scraping_dates)
-
-with open('variables.pkl', 'wb') as file:
-    pickle.dump((to_be_scraped, url_html, candidate_dates, shifted_dates, closest, scraping_dates, switched), file)
