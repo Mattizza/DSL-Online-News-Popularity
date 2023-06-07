@@ -1,9 +1,12 @@
 import requests
 import re
 import time
+import pickle
 import numpy as np
+import pandas as pd
 
 from bs4 import BeautifulSoup
+
 from selenium import webdriver
 from datetime import datetime, timedelta
 
@@ -21,7 +24,7 @@ class Scraper():
         self = self
 
 
-    def set_url(self, url: list) -> None:
+    def set_url(self, url_timedelta: pd.DataFrame) -> None:
         '''
         Pass a list `URL`'s. They will be stored within the object and will be considered
         through the scraping.
@@ -32,7 +35,8 @@ class Scraper():
             List of `URL`'s, each in a `str` format.
         '''
         
-        self.__url__ = url
+        self.__url__ = url_timedelta['url']
+        self.__url_timedelta__ = url_timedelta
 
 
     def start_driver(self) -> None:
@@ -44,7 +48,7 @@ class Scraper():
         print('DRIVER ONLINE')
 
 
-    def scrape(self, url: list = [], years: list = ['2013', '2014', '2015']) -> dict:
+    def scrape(self, url: list = [], years: list = ['2013', '2014', '2015'], backup = True) -> dict:
         '''
         Starts the scraping over the `years`. For each `URL`, It redirects the
         `Selenium` Driver to Calendar section in Wayback Machine. Then, collect
@@ -69,14 +73,15 @@ class Scraper():
             pool_url = self.__url__
         else:
             pool_url = url
-
-        self.__url_html__ = {}      # Key = URL : Value = HTML
         
+        count_url  = 1
+        self.__url_html__ = {}      # Key = URL : Value = HTML
+
         # Iterate over the url's.
         for url in pool_url:
             
             print(f"Current URL: {url}")
-            self.__url_html__[url] = {}
+            self.__url_html__[f'{url}'] = {}
 
             # Retrieve the HTML of the DYNAMIC page.
             for year in years:
@@ -100,9 +105,32 @@ class Scraper():
                     print("")
                     print("\t\t     Failure.") if not successful else print("\t\t     Success!")
 
-                self.__url_html__[url].update({year : soup})
+                self.__url_html__[f'{url}'].update({year : soup})
         
-        
+            if (backup) and (count_url % 50 == 0):
+
+                candidate_dates = self.get_snap_dates(self.__url_html__)
+                url_fold = set(self.__url_html__.keys())
+                selected_timedelta = self.__url_timedelta__.loc[self.__url_timedelta__['url'].isin(url_fold), 'timedelta']
+                shifted_dates   = self.shift_dates(self.__url_html__.keys(), selected_timedelta)
+
+                closest = []
+                for i, key in zip(range(len(candidate_dates)), candidate_dates.keys()):
+                    closest.append(self.get_closest(shifted_dates[i], candidate_dates[key]))
+
+                print(self.__url__)
+                # print(self.__url_html__)
+                print(closest)
+                scraping_dates = {k: v for k, v in zip(self.__url__[self.__url__.isin(list(self.__url_html__.keys()))], closest)}
+                #scraping_dates = {k: v for k, v in zip(self.__url__[self.__url__ in list(self.__url_html__.keys())], closest)}
+
+                with open(f'url_html/url_html{count_url}.pkl', 'wb') as file:
+                    
+                    pickle.dump(scraping_dates, file)
+                    self.__url_html__ = {}      # Key = URL : Value = HTML
+
+            count_url += 1    
+
         return self.__url_html__
         
     
