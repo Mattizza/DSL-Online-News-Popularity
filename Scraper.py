@@ -74,7 +74,7 @@ class Scraper():
         else:
             pool_url = url
         
-        count_url  = 1
+        count_url  = 2001
         self.__url_html__ = {}      # Key = URL : Value = HTML
 
         # Iterate over the url's.
@@ -107,7 +107,7 @@ class Scraper():
 
                 self.__url_html__[f'{url}'].update({year : soup})
         
-            if (backup) and (count_url % 50 == 0):
+            if (backup) and (count_url % 10 == 0):
 
                 candidate_dates = self.get_snap_dates(self.__url_html__)
                 url_fold = set(self.__url_html__.keys())
