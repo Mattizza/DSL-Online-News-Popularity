@@ -74,7 +74,7 @@ class Scraper():
         else:
             pool_url = url
         
-        count_url  = 1891
+        count_url  = 3571
         self.__url_html__ = {}      # Key = URL : Value = HTML
 
         # Iterate over the url's.
@@ -82,6 +82,14 @@ class Scraper():
             
             print(f"Current URL: {url}")
             self.__url_html__[f'{url}'] = {}
+
+            if count_url % 20 == 0:
+
+                self.__driver__.close()
+                self.__driver__.quit()
+                self.__driver__ = webdriver.Firefox()
+                print('DRIVER ONLINE')
+
 
             # Retrieve the HTML of the DYNAMIC page.
             for year in years:
@@ -129,7 +137,8 @@ class Scraper():
                     pickle.dump(scraping_dates, file)
                     self.__url_html__ = {}      # Key = URL : Value = HTML
 
-            count_url += 1    
+            count_url += 1
+            print(count_url) 
 
         return self.__url_html__
         
