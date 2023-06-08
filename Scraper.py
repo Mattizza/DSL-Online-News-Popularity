@@ -74,7 +74,7 @@ class Scraper():
         else:
             pool_url = url
         
-        count_url  = 3571
+        count_url  = 3851
         self.__url_html__ = {}      # Key = URL : Value = HTML
 
         # Iterate over the url's.
