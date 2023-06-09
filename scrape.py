@@ -117,7 +117,7 @@ data = pd.read_csv(file_PATH + r'/development.csv',
 
 
 # to_be_scraped = data[data['num_imgs'].isna()]
-to_be_scraped = data[data['num_imgs'].isna()].iloc[3850:6000]
+to_be_scraped = data[data['num_imgs'].isna()].iloc[4940:6000]
 scrap = Scraper()
 scrap.set_url(to_be_scraped[['url', 'timedelta']])
 scrap.start_driver()

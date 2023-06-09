@@ -4,12 +4,13 @@ from sklearn import metrics
 import copy
 import pandas as pd
 
+from sklearn.decomposition import PCA
 from sklearn.model_selection import KFold, StratifiedKFold, ParameterGrid
 
 
 class PrunedCV:
 
-    def __init__(self, X_train: np.ndarray, y_train: np.ndarray, folds: KFold | StratifiedKFold):
+    def __init__(self, X_train: pd.DataFrame, y_train: pd.DataFrame, folds: KFold | StratifiedKFold):
         '''
         Initialize a new instance of the class. It creates a PrunedCV object that can be used to perform either model selection
         and model validation.
@@ -30,6 +31,8 @@ class PrunedCV:
         self.__folds__   = folds
         self.__X_train__ = X_train
         self.__y_train__ = y_train
+        self.__columns__ = list(X_train.columns)
+        # self.__columns__.append('shares')
 
     def set_params(self, param_grid: dict, scores: list) -> None:
         '''
@@ -88,12 +91,14 @@ class PrunedCV:
         self.__score__             = score.__name__
 
 
-    def preprocess(X, y, train = True, means: dict = {}):
+    def preprocess(self, X, y, p = PCA, train = True, means: dict = {}):
     
         if train:
             X['shares'] = y
-            X = copy.deepcopy(X[(X['shares'] > 300) & (X['shares'] < 22000)])
-            y = copy.deepcopy(y[(y > 300) & (y < 22000)])
+            # X = copy.deepcopy(X[(X['shares'] > 300) & (X['shares'] < 6000)])
+            # y = copy.deepcopy(y[(y > 300) & (y < 6000)])
+            X = copy.deepcopy(X[X['shares'] < 12000])
+            y = copy.deepcopy(y[y < 12000])
             X = X.drop('shares', axis = 1)
 
         conditions = [
@@ -110,8 +115,8 @@ class PrunedCV:
         if train:
             X[columns_to_fill] = X[columns_to_fill].fillna(X[columns_to_fill].mean())
             dict_means = {'num_imgs'     : X['num_imgs'].mean(),
-                        'num_videos'   : X['num_videos'].mean(),
-                        'num_keywords' : X['num_keywords'].mean()}
+                          'num_videos'   : X['num_videos'].mean(),
+                          'num_keywords' : X['num_keywords'].mean()}
         
         else:
             X = X.fillna(means)
@@ -120,8 +125,8 @@ class PrunedCV:
                                 np.where(conditions[1], labels[1],
                                             np.where(conditions[2], labels[2], None)))
         
-        X['weekday'] = np.where(X['weekday'].isin(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']), 'Not Weekend', 'Weekend')
-
+        X['weekday'] = np.where(X['weekday'].isin(['monday', 'tuesday', 'wednesday', 'thursday', 'friday']), 'Not Weekend', 'Weekend')
+        
         if train:
             y = y[X['n_tokens_content'] != 0]
             X = X[X['n_tokens_content'] != 0]
@@ -160,6 +165,7 @@ class PrunedCV:
         X_processed['self_reference_avg_sharess'] = np.log1p(X_processed['self_reference_avg_sharess'])
         
         y_processed = np.log(y)
+        
 
         one_hot_encoded = pd.get_dummies(X_processed['data_channel'])
 
@@ -191,7 +197,27 @@ class PrunedCV:
         X_processed = pd.concat([X_processed, one_hot_encoded], axis = 1)
         X_processed  = X_processed.drop('title_sentiment_polarity', axis = 1)
 
-        return X_processed, y_processed, dict_means
+        categorical_features = ['high_negative_polarity', 'low_negative_polarity', 'neutral_polarity', 'low_positive_polarity', 'high_positive_polarity',
+                                'no_subjectivity', 'low_subjectivity', 'medium_subjectvity', 'high_subjectivity',
+                                'Not Weekend', 'Weekend',
+                                'kw_avg_max_none', 'kw_avg_max_medium', 'kw_avg_max_high']
+        
+        X_processed.loc[:, categorical_features] = X_processed.loc[:, categorical_features].astype(int)
+        
+        if train:
+
+            p = PCA(n_components = 0.90)
+            temp = copy.deepcopy(X_processed)
+            X_processed = p.fit_transform(temp)
+        
+        else:
+
+            temp = copy.deepcopy(X_processed)
+            X_processed = p.transform(temp)
+
+
+        return X_processed, y_processed, dict_means, p
+
 
 
 
@@ -199,9 +225,9 @@ class PrunedCV:
                            model: type, scores: list) -> dict:
         
 
-        model.fit(X_train, y_train)                  
-        y_hat = model.predict(X_test)    
+        model.fit(X_train, y_train)     
 
+        y_hat = model.predict(X_test)
         # Exploit list comprehension to compute each score and store the results into a dictionary where each key is a score.
         results     = [np.sqrt(score(np.exp(y_test), np.exp(y_hat))) for score in scores]
         dic_results =  {k: v for k, v in zip([score.__name__ for score in scores], results)}
@@ -224,7 +250,7 @@ class PrunedCV:
         '''
 
         # Initialize best score and models performances.
-        best               = 0
+        best               = 20000
         models_performance = {}
 
         # Iterate over all models of interest.
@@ -265,14 +291,17 @@ class PrunedCV:
 
                         skipped = True
                         break
-                                                                    
-                    X_train_fold = self.__X_train__[train_indices]      
-                    y_train_fold = self.__y_train__[train_indices]      
-                    X_valid_fold = self.__X_train__[valid_indices]      
-                    y_valid_fold = self.__y_train__[valid_indices]
 
-                    X_train_fold, y_train_fold, means = self.preprocess(X_train_fold, y_train_fold, train = True)
-                    X_valid_fold, y_valid_fold, _     = self.preprocess(X_train_fold, y_train_fold, train = False, means = means)
+                    X_train_fold = pd.DataFrame(self.__X_train__.iloc[train_indices], columns = self.__columns__)      
+                    
+                    y_train_fold = self.__y_train__.iloc[train_indices]      
+                    
+                    X_valid_fold = pd.DataFrame(self.__X_train__.iloc[valid_indices], columns = self.__columns__)
+                    
+                    y_valid_fold = self.__y_train__.iloc[valid_indices]
+
+                    X_train_fold, y_train_fold, means, p = self.preprocess(X_train_fold, y_train_fold, train = True)
+                    X_valid_fold, y_valid_fold, _, _     = self.preprocess(X_valid_fold, y_valid_fold, p = p, train = False, means = means)
                     
 
                     # Train the classifier and evaluate it.                                                      
@@ -294,7 +323,7 @@ class PrunedCV:
                     actual_avg_performance = np.average(actual_scores, weights = actual_weights)
 
                     # If the model has a bad performance, increase the count by 1.
-                    count_skip += 1 if actual_avg_performance < self.__thresh_percentage__ * best else 0
+                    count_skip += 1 if actual_avg_performance > self.__thresh_percentage__ * best else 0
                                         
                     if verbose >= 4:
                         
@@ -310,7 +339,7 @@ class PrunedCV:
                 
 
                 # If the model has really good performances, it becomes the new best.
-                best = total_avg_performance if total_avg_performance >= best and self.__thresh_percentage__ != 0.0 else best
+                best = total_avg_performance if total_avg_performance <= best and self.__thresh_percentage__ != 0.0 else best
 
                 # Store the parameters in order to be able later to retrieve the best configuration.
                 models_performance[model_name][model_config_name]['parameters'] = config
