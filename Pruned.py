@@ -229,7 +229,7 @@ class PrunedCV:
 
         y_hat = model.predict(X_test)
         # Exploit list comprehension to compute each score and store the results into a dictionary where each key is a score.
-        results     = [np.sqrt(score(np.exp(y_test), np.exp(y_hat))) for score in scores]
+        results     = [np.sqrt(score(y_test, y_hat)) for score in scores]
         dic_results =  {k: v for k, v in zip([score.__name__ for score in scores], results)}
         
         return dic_results
@@ -299,9 +299,6 @@ class PrunedCV:
                     X_valid_fold = pd.DataFrame(self.__X_train__.iloc[valid_indices], columns = self.__columns__)
                     
                     y_valid_fold = self.__y_train__.iloc[valid_indices]
-
-                    X_train_fold, y_train_fold, means, p = self.preprocess(X_train_fold, y_train_fold, train = True)
-                    X_valid_fold, y_valid_fold, _, _     = self.preprocess(X_valid_fold, y_valid_fold, p = p, train = False, means = means)
                     
 
                     # Train the classifier and evaluate it.                                                      
