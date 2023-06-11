@@ -2,6 +2,7 @@
 import pandas as pd
 import numpy as np
 from sklearn.ensemble import IsolationForest
+from sklearn.preprocessing import RobustScaler
 
 class Preprocessing():
 
@@ -44,7 +45,7 @@ class Preprocessing():
         if train:
 
             self.__dataframe__[columns] = self.__dataframe__[columns].fillna(self.__dataframe__[columns].mean())
-            return self.__dataframe__['num_imgs'].mean(), self.__dataframe__['num_videos'].mean(), self.__dataframe__['num_keywords'].mean()
+            return self.__dataframe__['num_imgs'].median(), self.__dataframe__['num_videos'].median(), self.__dataframe__['num_keywords'].median()
 
         else:
             self.__dataframe__['num_imgs'] = self.__dataframe__['num_imgs'].fillna(imgs_mean)
@@ -101,3 +102,59 @@ class Preprocessing():
         else:
 
             return -1 *iForest.score_samples(self.__dataframe__)
+    
+    def robust_scale(self, columns = [], train = True, scaler: RobustScaler = RobustScaler()) -> pd.DataFrame:
+
+        subset_data = self.__dataframe__[columns]
+
+        if train:
+            
+            scaler = RobustScaler()
+            scaler = scaler.fit(subset_data)
+            scaled_subset_data = scaler.transform(subset_data)
+            
+            # Replace the original subset of features with the scaled values
+            self.__dataframe__[columns] = scaled_subset_data
+
+            return self.__dataframe__, scaler
+    
+        else:
+
+            scaled_subset_data = scaler.transform(subset_data)
+            # Replace the original subset of features with the scaled values
+            self.__dataframe__[columns] = scaled_subset_data
+
+            return self.__dataframe__
+
+        
+
+    def apply_log(self, columns = []) -> pd.DataFrame:
+
+        subset_data = self.__dataframe__[columns]
+
+        # Apply logarithm transformation to the subset of features
+        log_transformed_data = np.log(subset_data)
+
+        # Replace the original subset of features with the transformed values
+        self.__dataframe__[columns] = log_transformed_data
+
+
+    def apply_log1p(self, columns = []) -> pd.DataFrame:
+
+        subset_data = self.__dataframe__[columns]
+
+        # Apply logarithm transformation to the subset of features
+        log_transformed_data = np.log1p(subset_data)
+
+        # Replace the original subset of features with the transformed values
+        self.__dataframe__[columns] = log_transformed_data
+
+    def filter(self, column, value, keep_smaller = True) -> pd.DataFrame:
+
+        if keep_smaller:
+            
+            self.__dataframe__ = self.__dataframe__[self.__dataframe__[column] <= value]
+            return self.__dataframe__
+        else:
+            self.__dataframe__ = self.__dataframe__[self.__dataframe__[column] >= value]
+            return self.__dataframe__
