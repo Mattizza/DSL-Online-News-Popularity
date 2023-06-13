@@ -139,10 +139,13 @@ class Preprocessing():
         self.__dataframe__[columns] = log_transformed_data
 
 
-    def apply_log1p(self, columns = []) -> pd.DataFrame:
+    def apply_log1p(self, columns = [], add_1 = False) -> pd.DataFrame:
 
-        subset_data = self.__dataframe__[columns]
-
+        if add_1:
+            subset_data = self.__dataframe__[columns] + 1
+        else:
+            subset_data = self.__dataframe__[columns] + 1
+            
         # Apply logarithm transformation to the subset of features
         log_transformed_data = np.log1p(subset_data)
 
